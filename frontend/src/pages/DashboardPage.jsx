@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { 
-  Server, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  Server,
+  CheckCircle2,
+  XCircle,
   HelpCircle,
   Activity,
   GitBranch,
@@ -24,26 +24,30 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Normalizza qualsiasi risposta "lista" in un array
+  const normalizeList = (data) => {
+    if (Array.isArray(data)) return data
+    if (Array.isArray(data?.items)) return data.items
+    return []
+  }
+
   const loadData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const [statsData, nodesData, runsData, reposData, policiesData] = await Promise.all([
+      const [statsData, nodesData, runsData] = await Promise.all([
         runsApi.getStats(24),
         nodesApi.list({ limit: 100 }),
         runsApi.list({ limit: 5 }),
-        repositoriesApi.list({ limit: 1 }),
-        policiesApi.list({ limit: 1 }),
       ])
-      
+
       setStats(statsData)
-      setNodes(nodesData)
-      setRecentRuns(runsData)
-      
-      // For counts we need total, the API returns arrays so we fetch with limit 1 
-      // and check headers or make a count endpoint. For now just get the full list
-      const allRepos = await repositoriesApi.list()
-      const allPolicies = await policiesApi.list()
+      setNodes(normalizeList(nodesData))
+      setRecentRuns(normalizeList(runsData))
+
+      // Per i count prendiamo la lunghezza delle liste complete
+      const allRepos = normalizeList(await repositoriesApi.list())
+      const allPolicies = normalizeList(await policiesApi.list())
       setCounts({
         repos: allRepos.length,
         policies: allPolicies.length,
@@ -78,7 +82,7 @@ export default function DashboardPage() {
   }
 
   // Calculate node status breakdown
-  const statusCounts = nodes.reduce((acc, node) => {
+  const statusCounts = (nodes || []).reduce((acc, node) => {
     const status = node.last_status || 'unknown'
     acc[status] = (acc[status] || 0) + 1
     return acc
@@ -158,7 +162,7 @@ export default function DashboardPage() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value, name) => [`${value} nodes`, name]}
                     />
                   </PieChart>
@@ -166,8 +170,8 @@ export default function DashboardPage() {
                 <div className="flex justify-center gap-4 mt-2">
                   {pieData.map((entry) => (
                     <div key={entry.name} className="flex items-center gap-1.5 text-sm">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
+                      <div
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: entry.color }}
                       />
                       <span className="text-gray-600">{entry.name}: {entry.value}</span>
@@ -189,8 +193,8 @@ export default function DashboardPage() {
             <CardTitle>Resources</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Link 
-              to="/repositories" 
+            <Link
+              to="/repositories"
               className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -204,9 +208,9 @@ export default function DashboardPage() {
               </div>
               <ArrowRight className="w-5 h-5 text-gray-400" />
             </Link>
-            
-            <Link 
-              to="/policies" 
+
+            <Link
+              to="/policies"
               className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -220,9 +224,9 @@ export default function DashboardPage() {
               </div>
               <ArrowRight className="w-5 h-5 text-gray-400" />
             </Link>
-            
-            <Link 
-              to="/nodes" 
+
+            <Link
+              to="/nodes"
               className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -269,8 +273,8 @@ export default function DashboardPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Runs</CardTitle>
-          <Link 
-            to="/runs" 
+          <Link
+            to="/runs"
             className="text-sm text-primary-600 hover:text-primary-700 font-medium"
           >
             View all
