@@ -14,7 +14,7 @@ class ApiError extends Error {
 
 async function request(endpoint, options = {}) {
   const apiKey = localStorage.getItem('opentune_api_key')
-  
+
   const config = {
     ...options,
     headers: {
@@ -25,7 +25,7 @@ async function request(endpoint, options = {}) {
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, config)
-  
+
   if (!response.ok) {
     let errorData = null
     try {
@@ -48,6 +48,13 @@ async function request(endpoint, options = {}) {
   return response.json()
 }
 
+// Helper: normalizza qualsiasi "lista" in un array
+const normalizeList = (data) => {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.items)) return data.items
+  return []
+}
+
 // =============================================================================
 // Nodes API
 // =============================================================================
@@ -55,30 +62,30 @@ async function request(endpoint, options = {}) {
 export const nodesApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/nodes${query ? `?${query}` : ''}`)
+    return request(`/nodes${query ? `?${query}` : ''}`).then(normalizeList)
   },
-  
+
   get: (id) => request(`/nodes/${id}`),
-  
+
   create: (data) => request('/nodes', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  
+
   delete: (id) => request(`/nodes/${id}`, {
     method: 'DELETE',
   }),
-  
+
   assignPolicy: (nodeId, policyId) => request(`/nodes/${nodeId}/policy`, {
     method: 'PUT',
     body: JSON.stringify({ policy_id: policyId }),
   }),
-  
+
   getRuns: (nodeId, params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/nodes/${nodeId}/runs${query ? `?${query}` : ''}`)
+    return request(`/nodes/${nodeId}/runs${query ? `?${query}` : ''}`).then(normalizeList)
   },
-  
+
   regenerateToken: (id) => request(`/nodes/${id}/regenerate-token`, {
     method: 'POST',
   }),
@@ -91,21 +98,21 @@ export const nodesApi = {
 export const repositoriesApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/repositories${query ? `?${query}` : ''}`)
+    return request(`/repositories${query ? `?${query}` : ''}`).then(normalizeList)
   },
-  
+
   get: (id) => request(`/repositories/${id}`),
-  
+
   create: (data) => request('/repositories', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  
+
   update: (id, data) => request(`/repositories/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  
+
   delete: (id, force = false) => request(`/repositories/${id}?force=${force}`, {
     method: 'DELETE',
   }),
@@ -118,26 +125,26 @@ export const repositoriesApi = {
 export const policiesApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/policies${query ? `?${query}` : ''}`)
+    return request(`/policies${query ? `?${query}` : ''}`).then(normalizeList)
   },
-  
+
   get: (id) => request(`/policies/${id}`),
-  
+
   create: (data) => request('/policies', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  
+
   update: (id, data) => request(`/policies/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
-  
+
   delete: (id, force = false) => request(`/policies/${id}?force=${force}`, {
     method: 'DELETE',
   }),
-  
-  getNodes: (id) => request(`/policies/${id}/nodes`),
+
+  getNodes: (id) => request(`/policies/${id}/nodes`).then(normalizeList),
 }
 
 // =============================================================================
@@ -147,11 +154,11 @@ export const policiesApi = {
 export const runsApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/runs${query ? `?${query}` : ''}`)
+    return request(`/runs${query ? `?${query}` : ''}`).then(normalizeList)
   },
-  
+
   get: (id) => request(`/runs/${id}`),
-  
+
   getStats: (hours = 24) => request(`/runs/stats?hours=${hours}`),
 }
 
