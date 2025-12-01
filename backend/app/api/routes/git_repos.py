@@ -159,7 +159,7 @@ def delete_repository(
     return None
 
 
-@router.get("/{repo_id}/policies", response_model=List["PolicyRead"])
+@router.get("/{repo_id}/policies")
 def get_repository_policies(
     repo_id: int,
     session: Session = Depends(get_session),
@@ -167,7 +167,6 @@ def get_repository_policies(
     """
     Get all policies that use this repository.
     """
-    from app.schemas import PolicyRead  # Import here to avoid circular
     
     repo = session.get(GitRepository, repo_id)
     if not repo:

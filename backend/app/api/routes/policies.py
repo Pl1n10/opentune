@@ -185,7 +185,7 @@ def delete_policy(
     return None
 
 
-@router.get("/{policy_id}/nodes", response_model=List["NodeRead"])
+@router.get("/{policy_id}/nodes")
 def get_policy_nodes(
     policy_id: int,
     session: Session = Depends(get_session),
@@ -193,7 +193,6 @@ def get_policy_nodes(
     """
     Get all nodes assigned to this policy.
     """
-    from app.schemas import NodeRead  # Import here to avoid circular
     
     policy = session.get(Policy, policy_id)
     if not policy:
