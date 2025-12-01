@@ -1,0 +1,7 @@
+# Ignore compiled MOF files (they are generated at runtime)
+*.mof
+*.mof.checksum
+
+# But keep this .gitignore and .gitkeep
+!.gitignore
+!.gitkeep

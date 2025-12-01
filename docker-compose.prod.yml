@@ -1,0 +1,61 @@
+# =============================================================================
+# OpenTune - Production Docker Compose (with PostgreSQL)
+# =============================================================================
+#
+# Usage:
+#   1. Copy this file: cp docker-compose.prod.yml docker-compose.override.yml
+#   2. Edit the passwords and API key!
+#   3. Run: docker compose up -d
+#
+# =============================================================================
+
+services:
+  opentune:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opentune
+    restart: unless-stopped
+    
+    ports:
+      - "8000:8000"
+    
+    environment:
+      - PROJECT_NAME=opentune
+      - DATABASE_URL=postgresql://opentune:CHANGE_DB_PASSWORD@db:5432/opentune
+      - ADMIN_API_KEY=CHANGE_ME_GENERATE_SECURE_KEY
+      - DEBUG=false
+    
+    depends_on:
+      db:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  db:
+    image: postgres:16-alpine
+    container_name: opentune-db
+    restart: unless-stopped
+    
+    environment:
+      - POSTGRES_USER=opentune
+      - POSTGRES_PASSWORD=CHANGE_DB_PASSWORD
+      - POSTGRES_DB=opentune
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opentune"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    name: opentune_postgres_data

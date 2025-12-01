@@ -1,0 +1,49 @@
+# =============================================================================
+# OpenTune - Docker Compose
+# =============================================================================
+# 
+# Quick start:
+#   docker compose up -d
+#
+# With custom API key:
+#   ADMIN_API_KEY=your-secure-key docker compose up -d
+#
+# View logs:
+#   docker compose logs -f
+#
+# Stop:
+#   docker compose down
+#
+# =============================================================================
+
+services:
+  opentune:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opentune
+    restart: unless-stopped
+    
+    ports:
+      - "8000:8000"
+    
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME:-opentune}
+      - DATABASE_URL=sqlite:///./data/opentune.db
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-CHANGE-ME-PLEASE-GENERATE-A-KEY}
+      - DEBUG=${DEBUG:-false}
+    
+    volumes:
+      # Persist database
+      - opentune_data:/app/data
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  opentune_data:
+    name: opentune_data

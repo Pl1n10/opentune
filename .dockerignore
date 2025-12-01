@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database
+*.db
+*.sqlite3
+
+# Environment files (use docker env instead)
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js (we copy package.json separately)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Deploy scripts (not needed in container)
+deploy/
+
+# Agent (Windows only, not needed in container)
+agent/
+
+# Example repo (not needed in container)
+example-dsc-repo/
+
+# Docker files (avoid recursion)
+Dockerfile
+docker-compose*.yml
+.dockerignore

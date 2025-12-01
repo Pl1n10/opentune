@@ -1,0 +1,5 @@
+{
+  "controlPlaneUrl": "https://dsc-cp.example.com",
+  "nodeId": 1,
+  "nodeToken": "YOUR-NODE-TOKEN-FROM-REGISTRATION"
+}
