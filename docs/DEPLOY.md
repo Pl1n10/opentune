@@ -1,363 +1,659 @@
-# OpenTune - Guida al Deploy su VM
+# OpenTune Manual Deployment Guide
 
-Questa guida ti accompagna nel deploy di OpenTune su una VM Ubuntu.
+Complete guide for deploying OpenTune on a Linux VM without Docker.
 
-## Prerequisiti
+## Table of Contents
 
-- VM con Ubuntu 22.04 LTS (o superiore)
-- Almeno 1GB RAM, 10GB disco
-- Accesso SSH con sudo
-- (Opzionale) Dominio per HTTPS
-
----
-
-## Parte 1: Preparazione del Repository Git
-
-### Sul tuo computer locale
-
-```bash
-# 1. Estrai lo ZIP
-unzip opentune-complete.zip
-cd dsc-cp
-
-# 2. Inizializza il repository Git
-git init
-
-# 3. Aggiungi tutti i file
-git add .
-
-# 4. Primo commit
-git commit -m "Initial commit: OpenTune v0.2.0
-
-- FastAPI backend with SQLite
-- React frontend with Tailwind
-- PowerShell DSC agent
-- Example DSC configurations"
-
-# 5. Crea il repository su GitHub
-#    Vai su https://github.com/new
-#    Nome: opentune (o quello che preferisci)
-#    NON inizializzare con README (già presente)
-
-# 6. Collega e pusha
-git remote add origin https://github.com/TUO_USERNAME/opentune.git
-git branch -M main
-git push -u origin main
-```
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Systemd Service](#systemd-service)
+- [Nginx & HTTPS](#nginx--https)
+- [Post-Installation](#post-installation)
+- [Maintenance](#maintenance)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Parte 2: Setup della VM
+## Prerequisites
 
-### Connettiti alla VM
+### System Requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| OS | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS |
+| CPU | 1 core | 2 cores |
+| RAM | 1 GB | 2 GB |
+| Disk | 10 GB | 20 GB |
+| Network | Outbound HTTPS | Inbound 80/443 |
+
+### Required Software
+
+- Python 3.10+
+- Node.js 18+ (for building frontend)
+- Git
+- (Optional) Nginx for reverse proxy
+
+---
+
+## Installation
+
+### Step 1: System Preparation
 
 ```bash
-ssh user@IP_DELLA_VM
-```
+# Connect to your VM
+ssh user@your-server-ip
 
-### Installa le dipendenze base
-
-```bash
-# Aggiorna il sistema
+# Update system
 sudo apt update && sudo apt upgrade -y
 
-# Installa dipendenze
+# Install system dependencies
 sudo apt install -y \
     python3 \
     python3-pip \
     python3-venv \
     git \
-    curl
+    curl \
+    build-essential
 
-# Installa Node.js 20 LTS
+# Install Node.js 20 LTS
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# Verifica le installazioni
-python3 --version   # Dovrebbe essere 3.10+
-node --version      # Dovrebbe essere 20.x
-npm --version       # Dovrebbe essere 10.x
+# Verify installations
+python3 --version   # Should be 3.10+
+node --version      # Should be 20.x
+npm --version       # Should be 10.x
+git --version       # Should be 2.x+
 ```
 
----
-
-## Parte 3: Clone e Setup
-
-### Clona il repository
+### Step 2: Create Application Directory
 
 ```bash
-# Crea la directory
+# Create directory
 sudo mkdir -p /opt/opentune
 sudo chown $USER:$USER /opt/opentune
 
-# Clona il repo
-git clone https://github.com/TUO_USERNAME/opentune.git /opt/opentune
-
-# Vai nella directory
+# Clone repository (or upload your files)
+git clone https://github.com/YOUR_USERNAME/opentune.git /opt/opentune
 cd /opt/opentune
 ```
 
-### Setup Backend
+### Step 3: Backend Setup
 
 ```bash
-# Crea virtual environment Python
+cd /opt/opentune
+
+# Create Python virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
-# Installa dipendenze
+# Upgrade pip
 pip install --upgrade pip
+
+# Install dependencies
 pip install -r backend/requirements.txt
 
-# Crea file di configurazione
+# Create data directories
+mkdir -p backend/data/repos
+```
+
+### Step 4: Configuration
+
+```bash
+# Copy example configuration
 cp backend/.env.example backend/.env
 
-# Genera una API key sicura
+# Generate secure API key
 python3 -c "import secrets; print('ADMIN_API_KEY=' + secrets.token_urlsafe(32))"
-# Copia l'output e sostituiscilo nel file .env
 
-# Modifica il file .env
+# Edit configuration
 nano backend/.env
 ```
 
-Esempio `.env`:
+**Example `.env` file:**
+
 ```env
+# Required
+ADMIN_API_KEY=your-generated-api-key-here
+
+# Database (SQLite default)
+DATABASE_URL=sqlite:///./data/opentune.db
+
+# Server URL (for bootstrap scripts)
+SERVER_URL=https://opentune.company.com
+
+# Git repos cache directory
+REPOS_DIR=./data/repos
+
+# Optional
 PROJECT_NAME=opentune
-DATABASE_URL=sqlite:///./opentune.db
-ADMIN_API_KEY=TUA_API_KEY_GENERATA
 DEBUG=false
 ```
 
-### Build Frontend
+### Step 5: Build Frontend
 
 ```bash
 cd /opt/opentune/frontend
 
-# Installa dipendenze Node
-npm install
+# Install Node dependencies
+npm ci --no-audit
 
-# Build per produzione
+# Build for production
 npm run build
 
-# Verifica che dist/ sia stato creato
+# Verify build
 ls -la dist/
 ```
 
----
-
-## Parte 4: Test Manuale
-
-Prima di configurare il servizio, testa che tutto funzioni:
+### Step 6: Test Installation
 
 ```bash
 cd /opt/opentune/backend
 source ../venv/bin/activate
 
-# Avvia il server
+# Start server manually
 uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Test in another terminal or browser
+curl http://localhost:8000/health
+# Should return: {"status":"healthy"}
 ```
 
-Apri nel browser: `http://IP_VM:8000`
-
-Se vedi la pagina di login, funziona! Premi `Ctrl+C` per fermare.
+Press `Ctrl+C` to stop the test server.
 
 ---
 
-## Parte 5: Configurazione Servizio Systemd
+## Systemd Service
 
-### Crea l'utente di sistema
+### Step 1: Create Service User
 
 ```bash
+# Create system user (no login shell)
 sudo useradd --system --no-create-home --shell /bin/false opentune
-```
 
-### Imposta i permessi
-
-```bash
+# Set ownership
 sudo chown -R opentune:opentune /opt/opentune
 ```
 
-### Installa il servizio
+### Step 2: Install Service File
 
 ```bash
-# Copia il file service
+# Copy service file
 sudo cp /opt/opentune/deploy/opentune.service /etc/systemd/system/
 
-# Ricarica systemd
+# Or create manually:
+sudo nano /etc/systemd/system/opentune.service
+```
+
+**Service file content:**
+
+```ini
+[Unit]
+Description=OpenTune DSC Control Plane
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opentune
+Group=opentune
+WorkingDirectory=/opt/opentune/backend
+Environment="PATH=/opt/opentune/venv/bin"
+EnvironmentFile=/opt/opentune/backend/.env
+ExecStart=/opt/opentune/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/opentune/backend/data
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Step 3: Enable and Start
+
+```bash
+# Reload systemd
 sudo systemctl daemon-reload
 
-# Abilita all'avvio
+# Enable on boot
 sudo systemctl enable opentune
 
-# Avvia il servizio
+# Start service
 sudo systemctl start opentune
 
-# Verifica lo stato
+# Check status
 sudo systemctl status opentune
 ```
 
-### Comandi utili
+### Service Commands
 
-```bash
-# Visualizza i log in tempo reale
-sudo journalctl -u opentune -f
-
-# Riavvia il servizio
-sudo systemctl restart opentune
-
-# Ferma il servizio
-sudo systemctl stop opentune
-```
+| Action | Command |
+|--------|---------|
+| Start | `sudo systemctl start opentune` |
+| Stop | `sudo systemctl stop opentune` |
+| Restart | `sudo systemctl restart opentune` |
+| Status | `sudo systemctl status opentune` |
+| Logs | `sudo journalctl -u opentune -f` |
+| Last 100 logs | `sudo journalctl -u opentune -n 100` |
 
 ---
 
-## Parte 6: Firewall
+## Nginx & HTTPS
 
-```bash
-# Se usi UFW (Ubuntu Firewall)
-sudo ufw allow 8000/tcp
-sudo ufw status
-
-# Oppure se usi iptables
-sudo iptables -A INPUT -p tcp --dport 8000 -j ACCEPT
-```
-
----
-
-## Parte 7: (Opzionale) HTTPS con Nginx
-
-### Installa Nginx
+### Step 1: Install Nginx
 
 ```bash
 sudo apt install -y nginx
 ```
 
-### Configura il virtual host
+### Step 2: Configure Virtual Host
 
 ```bash
-# Copia la configurazione
+# Copy configuration
 sudo cp /opt/opentune/deploy/opentune.nginx /etc/nginx/sites-available/opentune
 
-# Modifica il dominio
+# Or create manually:
 sudo nano /etc/nginx/sites-available/opentune
-# Cambia "opentune.yourdomain.com" con il tuo dominio
+```
 
-# Abilita il sito
+**Nginx configuration:**
+
+```nginx
+server {
+    listen 80;
+    server_name opentune.company.com;
+    
+    # Redirect HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name opentune.company.com;
+
+    # SSL certificates (configured by certbot)
+    ssl_certificate /etc/letsencrypt/live/opentune.company.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/opentune.company.com/privkey.pem;
+    
+    # SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
+    
+    # Security headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # Logging
+    access_log /var/log/nginx/opentune_access.log;
+    error_log /var/log/nginx/opentune_error.log;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+```
+
+### Step 3: Enable Site
+
+```bash
+# Enable site
 sudo ln -s /etc/nginx/sites-available/opentune /etc/nginx/sites-enabled/
 
-# Testa la configurazione
+# Remove default site (optional)
+sudo rm /etc/nginx/sites-enabled/default
+
+# Test configuration
 sudo nginx -t
 
-# Ricarica nginx
+# Reload nginx
 sudo systemctl reload nginx
 ```
 
-### Aggiungi HTTPS con Let's Encrypt
+### Step 4: SSL Certificate (Let's Encrypt)
 
 ```bash
-# Installa certbot
+# Install certbot
 sudo apt install -y certbot python3-certbot-nginx
 
-# Ottieni il certificato (segui le istruzioni)
-sudo certbot --nginx -d opentune.tuodominio.com
+# Get certificate (follow prompts)
+sudo certbot --nginx -d opentune.company.com
 
-# Il certificato si rinnova automaticamente
-sudo systemctl status certbot.timer
+# Verify auto-renewal
+sudo certbot renew --dry-run
+```
+
+### Step 5: Firewall
+
+```bash
+# Allow HTTP and HTTPS
+sudo ufw allow 'Nginx Full'
+
+# Remove direct port 8000 if previously opened
+sudo ufw delete allow 8000
+
+# Check status
+sudo ufw status
 ```
 
 ---
 
-## Parte 8: Primo Accesso
+## Post-Installation
 
-1. Apri `http://IP_VM:8000` (o `https://tuodominio.com` se hai configurato nginx)
-2. Inserisci la `ADMIN_API_KEY` dal file `.env`
-3. Sei dentro! 🎉
+### Verification Checklist
 
-### Workflow iniziale
+```bash
+# 1. Service is running
+sudo systemctl status opentune
+# Should show: active (running)
 
-1. **Repositories** → Aggiungi il tuo repo Git con le config DSC
-2. **Policies** → Crea una policy che punta a un file di config
-3. **Nodes** → Aggiungi un nodo (salva il token!)
-4. **Nodes** → Assegna la policy al nodo
-5. Sul PC Windows, installa l'agent con il token
+# 2. Health check
+curl http://localhost:8000/health
+# Should return: {"status":"healthy"}
+
+# 3. Nginx is running
+sudo systemctl status nginx
+# Should show: active (running)
+
+# 4. HTTPS works
+curl -I https://opentune.company.com
+# Should return: HTTP/2 200
+
+# 5. API responds
+curl https://opentune.company.com/api/docs
+# Should return Swagger UI HTML
+```
+
+### Directory Structure
+
+After installation:
+
+```
+/opt/opentune/
+├── backend/
+│   ├── app/                    # Application code
+│   ├── data/
+│   │   ├── opentune.db        # SQLite database
+│   │   └── repos/             # Cached Git repositories
+│   ├── static/
+│   │   └── agent/             # Agent files
+│   ├── .env                   # Configuration
+│   └── requirements.txt
+├── frontend/
+│   ├── dist/                  # Built frontend
+│   └── src/
+├── venv/                      # Python virtual environment
+└── deploy/                    # Deployment files
+```
+
+### First Login
+
+1. Open `https://opentune.company.com` in browser
+2. Enter your `ADMIN_API_KEY` from `.env`
+3. You're in! 🎉
 
 ---
 
-## Troubleshooting
+## Maintenance
 
-### Il servizio non parte
+### Backup
 
 ```bash
-# Controlla i log
-sudo journalctl -u opentune -n 100 --no-pager
+# Backup database
+sudo -u opentune cp /opt/opentune/backend/data/opentune.db \
+    /opt/opentune/backend/data/backup-$(date +%Y%m%d).db
 
-# Errori comuni:
-# - Permessi: sudo chown -R opentune:opentune /opt/opentune
-# - .env mancante: verifica che esista backend/.env
-# - Porta occupata: sudo lsof -i :8000
+# Backup entire data directory
+sudo tar czf /backup/opentune-$(date +%Y%m%d).tar.gz \
+    /opt/opentune/backend/data \
+    /opt/opentune/backend/.env
 ```
 
-### Frontend non carica
+### Restore
 
 ```bash
-# Verifica che il build esista
-ls -la /opt/opentune/frontend/dist/
-
-# Se manca, rebuild
-cd /opt/opentune/frontend
-npm run build
-sudo systemctl restart opentune
-```
-
-### Database reset
-
-```bash
-# Per ricominciare da zero
+# Stop service
 sudo systemctl stop opentune
-rm /opt/opentune/backend/opentune.db
+
+# Restore database
+sudo -u opentune cp /backup/backup-20240115.db \
+    /opt/opentune/backend/data/opentune.db
+
+# Start service
 sudo systemctl start opentune
 ```
 
----
-
-## Aggiornamenti
-
-Per aggiornare a una nuova versione:
+### Update
 
 ```bash
 cd /opt/opentune
 
-# Ferma il servizio
+# Stop service
 sudo systemctl stop opentune
 
-# Pull delle modifiche
+# Pull updates
 git pull origin main
 
-# Aggiorna dipendenze Python
+# Update Python dependencies
 source venv/bin/activate
 pip install -r backend/requirements.txt
 
 # Rebuild frontend
 cd frontend
-npm install
+npm ci --no-audit
 npm run build
 
-# Riavvia
+# Fix permissions
+sudo chown -R opentune:opentune /opt/opentune
+
+# Start service
 sudo systemctl start opentune
+```
+
+### Log Rotation
+
+Systemd journal handles log rotation automatically. To configure:
+
+```bash
+# Edit journald config
+sudo nano /etc/systemd/journald.conf
+
+# Set max size
+SystemMaxUse=500M
+
+# Restart journald
+sudo systemctl restart systemd-journald
 ```
 
 ---
 
-## Riepilogo Comandi
+## Troubleshooting
 
-| Azione | Comando |
-|--------|---------|
-| Stato servizio | `sudo systemctl status opentune` |
-| Avvia | `sudo systemctl start opentune` |
-| Ferma | `sudo systemctl stop opentune` |
-| Riavvia | `sudo systemctl restart opentune` |
-| Log live | `sudo journalctl -u opentune -f` |
-| Ultimi 100 log | `sudo journalctl -u opentune -n 100` |
+### Service Won't Start
+
+```bash
+# Check logs
+sudo journalctl -u opentune -n 100 --no-pager
+
+# Common issues:
+# - Missing .env file
+# - Wrong permissions
+# - Port already in use
+# - Python module not found
+
+# Fix permissions
+sudo chown -R opentune:opentune /opt/opentune
+
+# Check port
+sudo lsof -i :8000
+```
+
+### Frontend Not Loading
+
+```bash
+# Check if dist exists
+ls -la /opt/opentune/frontend/dist/
+
+# Rebuild if missing
+cd /opt/opentune/frontend
+npm run build
+
+# Restart
+sudo systemctl restart opentune
+```
+
+### Database Issues
+
+```bash
+# Check database file
+ls -la /opt/opentune/backend/data/opentune.db
+
+# Reset database (WARNING: deletes all data!)
+sudo systemctl stop opentune
+rm /opt/opentune/backend/data/opentune.db
+sudo systemctl start opentune
+```
+
+### Git Clone Fails
+
+```bash
+# Test git manually
+sudo -u opentune git clone https://github.com/test/repo.git /tmp/test
+
+# Check network
+curl -I https://github.com
+
+# Check DNS
+nslookup github.com
+```
+
+### Nginx 502 Bad Gateway
+
+```bash
+# Check if backend is running
+curl http://localhost:8000/health
+
+# Check nginx error log
+sudo tail -f /var/log/nginx/opentune_error.log
+
+# Restart both services
+sudo systemctl restart opentune
+sudo systemctl restart nginx
+```
+
+### SSL Certificate Issues
+
+```bash
+# Check certificate status
+sudo certbot certificates
+
+# Force renewal
+sudo certbot renew --force-renewal
+
+# Check nginx config
+sudo nginx -t
+```
 
 ---
 
-Buon deploy! 🚀
+## Security Hardening
+
+### Firewall Rules
+
+```bash
+# Only allow SSH, HTTP, HTTPS
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+```
+
+### Fail2ban (Optional)
+
+```bash
+# Install
+sudo apt install -y fail2ban
+
+# Create jail for nginx
+sudo nano /etc/fail2ban/jail.local
+```
+
+```ini
+[nginx-http-auth]
+enabled = true
+
+[nginx-limit-req]
+enabled = true
+```
+
+```bash
+# Restart
+sudo systemctl restart fail2ban
+```
+
+### File Permissions
+
+```bash
+# Secure .env file
+sudo chmod 600 /opt/opentune/backend/.env
+sudo chown opentune:opentune /opt/opentune/backend/.env
+
+# Secure data directory
+sudo chmod 750 /opt/opentune/backend/data
+```
+
+---
+
+## Commands Reference
+
+| Action | Command |
+|--------|---------|
+| Start service | `sudo systemctl start opentune` |
+| Stop service | `sudo systemctl stop opentune` |
+| Restart service | `sudo systemctl restart opentune` |
+| View logs | `sudo journalctl -u opentune -f` |
+| Check status | `sudo systemctl status opentune` |
+| Health check | `curl http://localhost:8000/health` |
+| Nginx reload | `sudo systemctl reload nginx` |
+| SSL renew | `sudo certbot renew` |
+
+---
+
+## Quick Reference Card
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   OpenTune Quick Reference             │
+├────────────────────────────────────────────────────────┤
+│ Installation Path:  /opt/opentune                      │
+│ Config File:        /opt/opentune/backend/.env         │
+│ Database:           /opt/opentune/backend/data/        │
+│ Service:            opentune.service                   │
+│ Service User:       opentune                           │
+│ Default Port:       8000 (behind nginx)                │
+├────────────────────────────────────────────────────────┤
+│ Start:    sudo systemctl start opentune                │
+│ Stop:     sudo systemctl stop opentune                 │
+│ Logs:     sudo journalctl -u opentune -f               │
+│ Health:   curl http://localhost:8000/health            │
+└────────────────────────────────────────────────────────┘
+```
