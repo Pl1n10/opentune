@@ -10,7 +10,8 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react'
 import { nodesApi, policiesApi } from '../api/client'
 import { 
@@ -47,6 +48,7 @@ export default function NodeDetailPage() {
   // Regenerate token modal
   const [showRegenModal, setShowRegenModal] = useState(false)
   const [newToken, setNewToken] = useState(null)
+  const [bootstrapUrl, setBootstrapUrl] = useState(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [tokenCopied, setTokenCopied] = useState(false)
 
@@ -101,8 +103,10 @@ export default function NodeDetailPage() {
   const handleRegenerateToken = async () => {
     setIsRegenerating(true)
     try {
-      const result = await nodesApi.regenerateToken(id)
+      // Use the new bootstrap endpoint that regenerates token and returns bootstrap URL
+      const result = await nodesApi.getBootstrap(id)
       setNewToken(result.token)
+      setBootstrapUrl(result.bootstrap_url)
     } catch (err) {
       console.error('Failed to regenerate token:', err)
     } finally {
@@ -286,25 +290,33 @@ export default function NodeDetailPage() {
         )}
       </Card>
 
+      {/* Agent Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Agent Management</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-900">Download Bootstrap Script</p>
+              <p className="text-sm text-gray-500">
+                Regenerate the token and download a bootstrap script to install/reinstall the agent.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => setShowRegenModal(true)}>
+              <Download className="w-4 h-4" />
+              Get Bootstrap
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Danger Zone */}
       <Card className="border-red-200">
         <CardHeader>
           <CardTitle className="text-red-600">Danger Zone</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <p className="font-medium text-gray-900">Regenerate Token</p>
-              <p className="text-sm text-gray-500">
-                Generate a new authentication token. The old token will stop working.
-              </p>
-            </div>
-            <Button variant="secondary" onClick={() => setShowRegenModal(true)}>
-              <Key className="w-4 h-4" />
-              Regenerate
-            </Button>
-          </div>
-          
           <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
             <div>
               <p className="font-medium text-gray-900">Delete Node</p>
@@ -353,19 +365,40 @@ export default function NodeDetailPage() {
         onClose={() => {
           setShowRegenModal(false)
           setNewToken(null)
+          setBootstrapUrl(null)
           setTokenCopied(false)
         }}
-        title={newToken ? 'New Token Generated' : 'Regenerate Token'}
+        title={newToken ? 'Token Regenerated & Bootstrap Ready' : 'Regenerate Token & Get Bootstrap'}
       >
         {newToken ? (
           <div className="space-y-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-700 font-medium mb-2">
+                <Download className="w-5 h-5" />
+                Bootstrap Script Ready
+              </div>
+              <p className="text-sm text-blue-600 mb-3">
+                Download and run this script on your Windows machine to install/reinstall the agent.
+              </p>
+              {bootstrapUrl && (
+                <a
+                  href={bootstrapUrl}
+                  download={`bootstrap-${node?.name || 'node'}.ps1`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Bootstrap Script
+                </a>
+              )}
+            </div>
+            
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-center gap-2 text-amber-700 font-medium mb-2">
                 <AlertTriangle className="w-5 h-5" />
-                Save this token now!
+                New Token (for manual setup)
               </div>
               <p className="text-sm text-amber-600 mb-3">
-                This token will only be shown once. Update your agent configuration.
+                The old token has been invalidated. Save this new token if you prefer manual configuration.
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 p-2 bg-white border border-amber-300 rounded text-xs font-mono break-all">
@@ -380,6 +413,7 @@ export default function NodeDetailPage() {
               <Button onClick={() => {
                 setShowRegenModal(false)
                 setNewToken(null)
+                setBootstrapUrl(null)
               }}>
                 Done
               </Button>
@@ -392,7 +426,7 @@ export default function NodeDetailPage() {
               <div>
                 <p className="font-medium text-amber-900">The current token will be invalidated</p>
                 <p className="text-sm text-amber-700">
-                  You'll need to update the agent configuration with the new token.
+                  A new bootstrap script will be generated with the new token.
                 </p>
               </div>
             </div>
@@ -401,7 +435,8 @@ export default function NodeDetailPage() {
                 Cancel
               </Button>
               <Button onClick={handleRegenerateToken} isLoading={isRegenerating}>
-                Regenerate Token
+                <Download className="w-4 h-4" />
+                Regenerate & Get Bootstrap
               </Button>
             </ModalFooter>
           </div>

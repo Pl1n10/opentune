@@ -11,7 +11,9 @@ import {
   Clock,
   Copy,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Download,
+  Terminal
 } from 'lucide-react'
 import { nodesApi, policiesApi } from '../api/client'
 import { 
@@ -26,6 +28,13 @@ import {
 } from '../components/ui'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '../components/Table'
 import { Modal, ModalFooter } from '../components/Modal'
+import { CopyButton, CodeBlockWithCopy } from '../components/CopyButton'
+import { 
+  getServerBaseUrl, 
+  getBootstrapUrl, 
+  generatePowerShellBootstrapCommand,
+  copyToClipboard 
+} from '../utils/url'
 
 export default function NodesPage() {
   const [nodes, setNodes] = useState([])
@@ -35,9 +44,9 @@ export default function NodesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newNodeName, setNewNodeName] = useState('')
   const [createdNode, setCreatedNode] = useState(null)
+  const [bootstrapData, setBootstrapData] = useState(null) // { token, bootstrap_url, powershell_command }
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
-  const [tokenCopied, setTokenCopied] = useState(false)
   const navigate = useNavigate()
 
   const loadData = useCallback(async () => {
@@ -60,6 +69,12 @@ export default function NodesPage() {
     loadData()
   }, [loadData])
 
+  /**
+   * Create a new node and fetch bootstrap info.
+   * Flow:
+   * 1. POST /nodes/ to create the node (returns node + token)
+   * 2. Use the token to build the PowerShell bootstrap command
+   */
   const handleCreateNode = async () => {
     if (!newNodeName.trim()) {
       setCreateError('Please enter a node name')
@@ -70,9 +85,27 @@ export default function NodesPage() {
     setCreateError('')
 
     try {
+      // Step 1: Create the node
       const result = await nodesApi.create({ name: newNodeName.trim() })
       setCreatedNode(result)
       setNodes(prev => [...prev, result.node])
+      
+      // Step 2: Build bootstrap data using the returned token
+      // We use our frontend utility to build the URL and PowerShell command
+      // This ensures the URL uses the correct server address (from env or auto-detect)
+      const nodeId = result.node.id
+      const nodeName = result.node.name
+      const token = result.token
+      
+      const bootstrapUrl = getBootstrapUrl(nodeId, token)
+      const powershellCommand = generatePowerShellBootstrapCommand(nodeId, nodeName, token)
+      
+      setBootstrapData({
+        token,
+        bootstrap_url: bootstrapUrl,
+        powershell_command: powershellCommand,
+      })
+      
     } catch (err) {
       setCreateError(err.message || 'Failed to create node')
     } finally {
@@ -84,16 +117,8 @@ export default function NodesPage() {
     setShowCreateModal(false)
     setNewNodeName('')
     setCreatedNode(null)
+    setBootstrapData(null)
     setCreateError('')
-    setTokenCopied(false)
-  }
-
-  const copyToken = async () => {
-    if (createdNode?.token) {
-      await navigator.clipboard.writeText(createdNode.token)
-      setTokenCopied(true)
-      setTimeout(() => setTokenCopied(false), 2000)
-    }
   }
 
   // Filter nodes by search
@@ -237,47 +262,89 @@ export default function NodesPage() {
       <Modal
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        title={createdNode ? 'Node Created Successfully' : 'Create New Node'}
+        title={createdNode ? 'Node Created – Bootstrap Instructions' : 'Create New Node'}
+        size={createdNode ? 'lg' : 'md'}
       >
-        {createdNode ? (
-          <div className="space-y-4">
+        {createdNode && bootstrapData ? (
+          // ========================================
+          // SUCCESS STATE: Show bootstrap instructions
+          // ========================================
+          <div className="space-y-5">
+            {/* Success banner */}
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
+              <div className="flex items-center gap-2 text-green-700 font-medium">
                 <Check className="w-5 h-5" />
-                Node "{createdNode.node.name}" created
+                Node "{createdNode.node.name}" created successfully
               </div>
-              <p className="text-sm text-green-600">
-                ID: {createdNode.node.id}
+              <p className="text-sm text-green-600 mt-1">
+                Node ID: {createdNode.node.id}
               </p>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-center gap-2 text-amber-700 font-medium mb-2">
-                <AlertTriangle className="w-5 h-5" />
-                Save this token now!
+            {/* Main section: PowerShell command */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-gray-900 font-medium">
+                <Terminal className="w-5 h-5 text-blue-600" />
+                Run this on your Windows machine
               </div>
-              <p className="text-sm text-amber-600 mb-3">
-                This token will only be shown once. Store it securely.
+              <p className="text-sm text-gray-600">
+                Open PowerShell <strong>as Administrator</strong> and paste this command:
               </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 p-2 bg-white border border-amber-300 rounded text-xs font-mono break-all">
-                  {createdNode.token}
-                </code>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={copyToken}
-                >
-                  {tokenCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
+              
+              {/* PowerShell code block with copy button */}
+              <CodeBlockWithCopy 
+                code={bootstrapData.powershell_command}
+                language="powershell"
+                label="Copy"
+              />
             </div>
+
+            {/* Alternative: Direct download */}
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-2 text-gray-700 font-medium mb-2">
+                <Download className="w-5 h-5" />
+                Alternative: Direct Download
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                Or download the bootstrap script directly:
+              </p>
+              <a
+                href={bootstrapData.bootstrap_url}
+                download={`bootstrap-${createdNode.node.name}.ps1`}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Download bootstrap-{createdNode.node.name}.ps1
+              </a>
+            </div>
+
+            {/* Collapsed section: Raw token (for advanced users) */}
+            <details className="group">
+              <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Show raw token (for manual setup)
+              </summary>
+              <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-700 mb-2">
+                  <strong>Warning:</strong> This token is shown only once. Save it if you need manual installation.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 p-2 bg-white border border-amber-300 rounded text-xs font-mono break-all select-all">
+                    {bootstrapData.token}
+                  </code>
+                  <CopyButton text={bootstrapData.token} />
+                </div>
+              </div>
+            </details>
 
             <ModalFooter>
               <Button onClick={handleCloseCreateModal}>Done</Button>
             </ModalFooter>
           </div>
         ) : (
+          // ========================================
+          // INPUT STATE: Node name form
+          // ========================================
           <div className="space-y-4">
             <Input
               label="Node Name"
@@ -286,6 +353,11 @@ export default function NodesPage() {
               onChange={(e) => setNewNodeName(e.target.value)}
               error={createError}
               autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isCreating) {
+                  handleCreateNode()
+                }
+              }}
             />
             <p className="text-sm text-gray-500">
               Use a descriptive name like the hostname or a unique identifier.
