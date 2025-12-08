@@ -81,6 +81,83 @@ npm run dev
 
 ---
 
+## 5-Minute Quick Start
+
+Get your first Windows node managed in 5 minutes:
+
+```bash
+# ══════════════════════════════════════════════════════════════
+# STEP 1: Start the server (Docker)
+# ══════════════════════════════════════════════════════════════
+export ADMIN_API_KEY=$(openssl rand -base64 32)
+docker compose up -d
+echo "🔑 Save this key: $ADMIN_API_KEY"
+
+# ══════════════════════════════════════════════════════════════
+# STEP 2: Add a Git repository with DSC configs
+# ══════════════════════════════════════════════════════════════
+curl -X POST http://localhost:8000/api/v1/git-repos/ \
+  -H "X-Admin-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-configs", "url": "https://github.com/YOUR/dsc-repo.git", "branch": "main"}'
+# → Returns: {"id": 1, ...}
+
+# ══════════════════════════════════════════════════════════════
+# STEP 3: Create a policy pointing to a config file
+# ══════════════════════════════════════════════════════════════
+curl -X POST http://localhost:8000/api/v1/policies/ \
+  -H "X-Admin-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "workstation", "repository_id": 1, "config_path": "nodes/workstation.ps1"}'
+# → Returns: {"id": 1, ...}
+
+# ══════════════════════════════════════════════════════════════
+# STEP 4: Create a node and get bootstrap script
+# ══════════════════════════════════════════════════════════════
+curl -X POST http://localhost:8000/api/v1/nodes/ \
+  -H "X-Admin-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "pc-01"}'
+# → Returns: {"node": {"id": 1}, "token": "xxx..."}  ⚠️ SAVE THE TOKEN!
+
+# Get bootstrap script URL
+curl -X POST http://localhost:8000/api/v1/nodes/1/bootstrap \
+  -H "X-Admin-API-Key: $ADMIN_API_KEY"
+# → Returns: {"bootstrap_url": "http://...bootstrap.ps1?token=xxx"}
+
+# ══════════════════════════════════════════════════════════════
+# STEP 5: Assign policy to node
+# ══════════════════════════════════════════════════════════════
+curl -X PUT http://localhost:8000/api/v1/nodes/1/policy \
+  -H "X-Admin-API-Key: $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"policy_id": 1}'
+```
+
+```powershell
+# ══════════════════════════════════════════════════════════════
+# STEP 6: On Windows - Run bootstrap script (as Admin)
+# ══════════════════════════════════════════════════════════════
+Set-ExecutionPolicy Bypass -Scope Process -Force
+Invoke-WebRequest "http://SERVER:8000/api/v1/agents/nodes/1/bootstrap.ps1?token=YOUR_TOKEN" -OutFile bootstrap.ps1
+.\bootstrap.ps1
+
+# ✅ Done! Agent installed and running every 30 minutes
+```
+
+### Quick Reference
+
+| Task | Command |
+|------|---------|
+| Start server | `docker compose up -d` |
+| View logs | `docker compose logs -f` |
+| Stop server | `docker compose down` |
+| Health check | `curl http://localhost:8000/health` |
+| List nodes | `curl -H "X-Admin-API-Key: $KEY" http://localhost:8000/api/v1/nodes/` |
+| View runs | `curl -H "X-Admin-API-Key: $KEY" http://localhost:8000/api/v1/runs/` |
+
+---
+
 ## Architecture
 
 OpenTune follows a hub-and-spoke architecture where the control plane manages configuration distribution to Windows nodes.
