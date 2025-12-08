@@ -62,12 +62,12 @@ const normalizeList = (data) => {
 export const nodesApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/nodes${query ? `?${query}` : ''}`).then(normalizeList)
+    return request(`/nodes/${query ? `?${query}` : ''}`).then(normalizeList)
   },
 
   get: (id) => request(`/nodes/${id}`),
 
-  create: (data) => request('/nodes', {
+  create: (data) => request('/nodes/', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
@@ -98,12 +98,12 @@ export const nodesApi = {
 export const repositoriesApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/repositories${query ? `?${query}` : ''}`).then(normalizeList)
+    return request(`/repositories/${query ? `?${query}` : ''}`).then(normalizeList)
   },
 
   get: (id) => request(`/repositories/${id}`),
 
-  create: (data) => request('/repositories', {
+  create: (data) => request('/repositories/', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
@@ -125,12 +125,12 @@ export const repositoriesApi = {
 export const policiesApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/policies${query ? `?${query}` : ''}`).then(normalizeList)
+    return request(`/policies/${query ? `?${query}` : ''}`).then(normalizeList)
   },
 
   get: (id) => request(`/policies/${id}`),
 
-  create: (data) => request('/policies', {
+  create: (data) => request('/policies/', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
@@ -154,7 +154,7 @@ export const policiesApi = {
 export const runsApi = {
   list: (params = {}) => {
     const query = new URLSearchParams(params).toString()
-    return request(`/runs${query ? `?${query}` : ''}`).then(normalizeList)
+    return request(`/runs/${query ? `?${query}` : ''}`).then(normalizeList)
   },
 
   get: (id) => request(`/runs/${id}`),
