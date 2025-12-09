@@ -16,7 +16,7 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 
 # Install dependencies
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 # Copy frontend source
 COPY frontend/ ./
@@ -32,7 +32,7 @@ FROM python:3.11-slim
 # Labels
 LABEL org.opencontainers.image.title="OpenTune"
 LABEL org.opencontainers.image.description="GitOps Control Plane for Windows DSC"
-LABEL org.opencontainers.image.version="0.2.0"
+LABEL org.opencontainers.image.version="1.0.0"
 
 # Environment
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -42,9 +42,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (including git for server-side cloning)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
@@ -54,12 +55,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend/app ./app
 
+# Copy static files (agent scripts)
+COPY backend/static ./static
+
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Create non-root user
+# Create non-root user and directories
 RUN useradd --create-home --shell /bin/bash appuser && \
-    mkdir -p /app/data && \
+    mkdir -p /app/data /app/data/repos && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user
@@ -68,7 +72,8 @@ USER appuser
 # Default environment variables
 ENV PROJECT_NAME=opentune \
     DATABASE_URL=sqlite:///./data/opentune.db \
-    ADMIN_API_KEY=CHANGE-ME-ON-FIRST-RUN
+    ADMIN_API_KEY=CHANGE-ME-ON-FIRST-RUN \
+    REPOS_DIR=/app/data/repos
 
 # Expose port
 EXPOSE 8000

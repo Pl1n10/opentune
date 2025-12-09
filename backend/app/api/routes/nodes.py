@@ -6,12 +6,15 @@ Admin endpoints require X-Admin-API-Key header.
 
 from typing import List, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import PlainTextResponse
 from sqlmodel import Session, select
+from pydantic import BaseModel, Field
 
 from app.core.db import get_session
 from app.core.security import verify_admin_api_key, generate_node_token, hash_token
 from app.core.exceptions import not_found, conflict, bad_request
+from app.core.config import get_settings
 from app.models import Node, Policy, ReconciliationRun
 from app.schemas import (
     NodeRead,
@@ -21,7 +24,25 @@ from app.schemas import (
     RunRead,
 )
 
+settings = get_settings()
 router = APIRouter(prefix="/nodes", tags=["nodes"])
+
+
+# Response model for bootstrap
+class BootstrapScriptResponse(BaseModel):
+    """Response containing node info, token and bootstrap URL."""
+    node: NodeRead
+    token: str = Field(..., description="New node token (save this!)")
+    bootstrap_url: str = Field(..., description="URL to download the bootstrap script")
+
+
+def get_server_url(request: Request) -> str:
+    """Get the server URL for bootstrap scripts."""
+    if settings.SERVER_URL:
+        return settings.SERVER_URL.rstrip("/")
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
+    return f"{scheme}://{host}"
 
 
 # ============================================================================
@@ -260,3 +281,47 @@ def get_node_runs(
     
     return runs
 
+
+@router.post(
+    "/{node_id}/bootstrap",
+    response_model=BootstrapScriptResponse,
+    dependencies=[Depends(verify_admin_api_key)],
+)
+def regenerate_token_and_get_bootstrap(
+    node_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """
+    Regenerate the node token and return bootstrap script URL.
+    
+    This endpoint:
+    1. Generates a new token (old token is immediately invalidated)
+    2. Returns the new token and a URL to download the bootstrap script
+    
+    The bootstrap script contains the embedded token and can be run on
+    a Windows machine to install and configure the agent automatically.
+    
+    ⚠️ IMPORTANT: The token is returned ONLY in this response.
+    """
+    node = session.get(Node, node_id)
+    if not node:
+        raise not_found("Node", node_id)
+    
+    # Generate new token
+    plain_token = generate_node_token()
+    hashed_token = hash_token(plain_token)
+    
+    node.node_token_hash = hashed_token
+    session.add(node)
+    session.commit()
+    session.refresh(node)
+    
+    server_url = get_server_url(request)
+    bootstrap_url = f"{server_url}/api/v1/agents/nodes/{node_id}/bootstrap.ps1?token={plain_token}"
+    
+    return BootstrapScriptResponse(
+        node=NodeRead.model_validate(node),
+        token=plain_token,
+        bootstrap_url=bootstrap_url,
+    )

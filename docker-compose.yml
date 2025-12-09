@@ -32,9 +32,11 @@ services:
       - DATABASE_URL=sqlite:///./data/opentune.db
       - ADMIN_API_KEY=${ADMIN_API_KEY:-CHANGE-ME-PLEASE-GENERATE-A-KEY}
       - DEBUG=${DEBUG:-false}
+      - REPOS_DIR=/app/data/repos
+      - SERVER_URL=${SERVER_URL:-}
     
     volumes:
-      # Persist database
+      # Persist database and repos
       - opentune_data:/app/data
     
     healthcheck:

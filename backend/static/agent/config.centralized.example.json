@@ -1,0 +1,7 @@
+{
+    "mode": "centralized",
+    "server_url": "http://opentune.local:8000",
+    "node_id": 1,
+    "node_token": "YOUR_NODE_TOKEN_HERE",
+    "use_git": false
+}

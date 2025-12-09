@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     
     # Token settings
     NODE_TOKEN_BYTES: int = 32  # Length of generated node tokens (results in 64 hex chars)
+    
+    # Server URL for bootstrap scripts (auto-detected if not set)
+    SERVER_URL: str = ""
+    
+    # Repos directory for server-side cloning
+    REPOS_DIR: str = "/app/data/repos"
 
 
 @lru_cache

@@ -1,0 +1,6 @@
+{
+    "mode": "standalone",
+    "repo_url": "https://github.com/your-org/dsc-configs.git",
+    "branch": "main",
+    "config_path": "nodes/workstation-01.ps1"
+}

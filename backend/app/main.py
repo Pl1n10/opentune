@@ -36,7 +36,24 @@ def find_frontend_dir() -> Path | None:
     return None
 
 
+def find_static_dir() -> Path | None:
+    """Find the static files directory (for agent scripts etc.)."""
+    candidates = [
+        Path(__file__).parent.parent / "static",  # Development
+        Path(__file__).parent / "static",  # Alternative dev
+        Path("/app/backend/static"),  # Docker
+        Path("/app/static"),  # Docker alternative
+    ]
+    
+    for path in candidates:
+        if path.exists():
+            return path
+    
+    return None
+
+
 FRONTEND_DIR = find_frontend_dir()
+STATIC_DIR = find_static_dir()
 
 
 @asynccontextmanager
@@ -90,6 +107,10 @@ configurations using PowerShell Desired State Configuration (DSC).
     
     # API routes
     app.include_router(api_router, prefix=settings.API_V1_STR)
+    
+    # Serve static files (agent scripts etc.)
+    if STATIC_DIR:
+        app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     
     # Health check
     @app.get("/health", tags=["health"])

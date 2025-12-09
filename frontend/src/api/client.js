@@ -89,6 +89,11 @@ export const nodesApi = {
   regenerateToken: (id) => request(`/nodes/${id}/regenerate-token`, {
     method: 'POST',
   }),
+
+  // New: Regenerate token and get bootstrap script URL
+  getBootstrap: (id) => request(`/nodes/${id}/bootstrap`, {
+    method: 'POST',
+  }),
 }
 
 // =============================================================================
