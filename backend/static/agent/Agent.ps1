@@ -17,15 +17,15 @@
 
 .PARAMETER ConfigPath
     Path to the agent configuration JSON file.
-    Default: C:\dsc-agent\config.json
+    Default: C:\ProgramData\OpenTune\agent\config.json
 
 .PARAMETER WorkDir
     Working directory for repos/packages and temp files.
-    Default: C:\dsc-agent\work
+    Default: C:\ProgramData\OpenTune\agent\work
 
 .PARAMETER LogDir
     Directory for log files.
-    Default: C:\dsc-agent\logs
+    Default: C:\ProgramData\OpenTune\agent\logs
 
 .PARAMETER Force
     Force DSC apply even if Test-DscConfiguration passes.
@@ -45,9 +45,9 @@
 
 [CmdletBinding()]
 param(
-    [string]$ConfigPath = "C:\dsc-agent\config.json",
-    [string]$WorkDir    = "C:\dsc-agent\work",
-    [string]$LogDir     = "C:\dsc-agent\logs",
+    [string]$ConfigPath = "C:\ProgramData\OpenTune\agent\config.json",
+    [string]$WorkDir    = "C:\ProgramData\OpenTune\agent\work",
+    [string]$LogDir     = "C:\ProgramData\OpenTune\agent\logs",
     [switch]$Force
 )
 
