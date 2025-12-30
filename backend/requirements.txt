@@ -15,6 +15,7 @@ python-dotenv>=1.0.0
 
 # Security
 bcrypt>=4.1.0
+slowapi>=0.1.9  # Rate limiting
 
 # Static files
 aiofiles>=23.2.0

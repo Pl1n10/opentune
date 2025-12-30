@@ -36,6 +36,28 @@ class GitRepositoryBase(BaseModel):
         examples=["main", "master", "production"],
     )
     
+    @field_validator("default_branch")
+    @classmethod
+    def validate_branch_name(cls, v: str) -> str:
+        """Validate branch name to prevent command injection."""
+        # Git branch names cannot contain these characters
+        # Also block shell metacharacters for extra safety
+        forbidden_chars = [' ', '~', '^', ':', '?', '*', '[', '\\', '..', '@{', 
+                          ';', '&', '|', '$', '`', '(', ')', '<', '>', '"', "'"]
+        for char in forbidden_chars:
+            if char in v:
+                raise ValueError(f"Branch name cannot contain '{char}'")
+        
+        # Must not start with - (could be interpreted as git flag)
+        if v.startswith('-'):
+            raise ValueError("Branch name cannot start with '-'")
+        
+        # Must not end with .lock
+        if v.endswith('.lock'):
+            raise ValueError("Branch name cannot end with '.lock'")
+        
+        return v
+    
     @field_validator("url")
     @classmethod
     def validate_git_url(cls, v: str) -> str:

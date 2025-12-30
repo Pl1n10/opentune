@@ -26,6 +26,11 @@ from app.core import repo_service
 from app.models import Node, Policy, GitRepository, ReconciliationRun
 from app.schemas import RunReport, NodeRead
 
+# Import rate limiter from main
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
+
 settings = get_settings()
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -514,10 +519,11 @@ Write-Host ""
     # NO admin API key required - authentication is via token query parameter
     # This allows direct download from browser or PowerShell without headers
 )
+@limiter.limit("10/minute")  # Rate limit: 10 requests per minute per IP
 def get_bootstrap_script(
+    request: Request,  # Required for rate limiter
     node_id: int,
     token: str,  # Token is provided as query param for authentication
-    request: Request,
     session: Session = Depends(get_session),
 ):
     """

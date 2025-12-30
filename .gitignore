@@ -52,3 +52,5 @@ htmlcov/
 
 # Local config
 agent-config.json
+
+*:Zone.Identifier

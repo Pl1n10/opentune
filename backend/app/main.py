@@ -8,16 +8,22 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
 from app.core.db import init_db
 from app.api import api_router
 
 settings = get_settings()
+
+# Rate limiter - use IP address as key
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 
 def find_frontend_dir() -> Path | None:
@@ -52,6 +58,49 @@ def find_static_dir() -> Path | None:
     return None
 
 
+def check_security_config():
+    """Check for insecure configuration on startup."""
+    import sys
+    import logging
+    
+    logger = logging.getLogger("opentune.security")
+    
+    # Check for default API key
+    default_keys = [
+        "CHANGE-ME-GENERATE-A-SECURE-KEY",
+        "changeme",
+        "admin",
+        "password",
+        "secret",
+        "test",
+    ]
+    
+    if settings.ADMIN_API_KEY.lower() in [k.lower() for k in default_keys]:
+        logger.critical(
+            "\n"
+            "╔═══════════════════════════════════════════════════════════════╗\n"
+            "║  SECURITY ERROR: Default API key detected!                    ║\n"
+            "║                                                               ║\n"
+            "║  Set a secure ADMIN_API_KEY environment variable:             ║\n"
+            "║                                                               ║\n"
+            "║  python -c \"import secrets; print(secrets.token_urlsafe(32))\"  ║\n"
+            "║                                                               ║\n"
+            "║  Then set: ADMIN_API_KEY=<your-generated-key>                 ║\n"
+            "╚═══════════════════════════════════════════════════════════════╝"
+        )
+        if not settings.DEBUG:
+            sys.exit(1)
+        else:
+            logger.warning("Continuing with insecure key because DEBUG=True")
+    
+    # Check API key length
+    if len(settings.ADMIN_API_KEY) < 32:
+        logger.warning(
+            "ADMIN_API_KEY is less than 32 characters. "
+            "Consider using a longer key for better security."
+        )
+
+
 FRONTEND_DIR = find_frontend_dir()
 STATIC_DIR = find_static_dir()
 
@@ -60,9 +109,26 @@ STATIC_DIR = find_static_dir()
 async def lifespan(app: FastAPI):
     """Application lifecycle management."""
     # Startup
+    check_security_config()
     init_db()
     yield
     # Shutdown (cleanup if needed)
+
+
+def get_cors_origins() -> list:
+    """Get allowed CORS origins based on configuration."""
+    if settings.DEBUG:
+        # Development: allow all
+        return ["*"]
+    
+    # Production: restrict to known origins
+    origins = ["https://opentune.robertonovara.dev"]
+    
+    # Add SERVER_URL if configured
+    if settings.SERVER_URL:
+        origins.append(settings.SERVER_URL.rstrip("/"))
+    
+    return origins
 
 
 def create_app() -> FastAPI:
@@ -91,19 +157,35 @@ configurations using PowerShell Desired State Configuration (DSC).
         """,
         version="0.2.0",
         lifespan=lifespan,
-        docs_url="/api/docs",
-        redoc_url="/api/redoc",
-        openapi_url="/api/openapi.json",
+        docs_url="/api/docs" if settings.DEBUG else None,  # Disable in prod
+        redoc_url="/api/redoc" if settings.DEBUG else None,
+        openapi_url="/api/openapi.json" if settings.DEBUG else None,
     )
     
-    # CORS
+    # CORS - restricted in production
+    cors_origins = get_cors_origins()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_headers=["X-Admin-API-Key", "X-Node-Token", "Content-Type"],
     )
+    
+    # Rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    
+    # Security headers middleware
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        if not settings.DEBUG:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
     
     # API routes
     app.include_router(api_router, prefix=settings.API_V1_STR)
